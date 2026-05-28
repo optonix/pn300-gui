@@ -47,20 +47,17 @@ class PN300GUI:
         }
         led_row = ft.Row(list(self.leds.values()), spacing=30)
 
-        # Device Switch
         self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device_mode)
 
-        # Button Helper
         def make_btn(text, width=75, color=None, on_click=None):
             return ft.ElevatedButton(
-                text=text,
+                content=ft.Text(text),
                 width=width,
                 height=62,
                 bgcolor=color,
                 on_click=on_click
             )
 
-        # Buttons
         buttons = ft.GridView(
             controls=[
                 make_btn("V", on_click=lambda e: self.start_edit("V")),
@@ -98,7 +95,6 @@ class PN300GUI:
     def update_ui(self):
         v, i, status = self.state.get_display_values()
         ch = self.state.selected_channel
-
         self.display_line1.value = f"   {v:5.2f} V     {i:6.3f} A    {status}"
         self.display_line2.value = f"   Channel {ch}     {'ON ' if self.state.output_on else 'OFF'}     {self.state.mode}"
 
@@ -112,10 +108,8 @@ class PN300GUI:
     def toggle_device_mode(self, e):
         self.use_real_device = e.control.value
         if self.use_real_device:
-            success = self.device.connect()
-            print("Real Device verbunden" if success else "Verbindung fehlgeschlagen")
-        else:
-            print("Simulator Modus aktiv")
+            self.device.connect()
+        print("Real Device Modus:", self.use_real_device)
 
     def toggle_channel(self):
         self.state.selected_channel = "B" if self.state.selected_channel == "A" else "A"
@@ -145,15 +139,9 @@ class PN300GUI:
             try:
                 value = float(input_field.value)
                 if mode == "V":
-                    if self.state.selected_channel == "A":
-                        self.state.voltage_a = min(30.0, max(0.0, value))
-                    else:
-                        self.state.voltage_b = min(30.0, max(0.0, value))
+                    setattr(self.state, f"voltage_{self.state.selected_channel.lower()}", min(30.0, max(0.0, value)))
                 else:
-                    if self.state.selected_channel == "A":
-                        self.state.current_a = min(2.3, max(0.0, value))
-                    else:
-                        self.state.current_b = min(2.3, max(0.0, value))
+                    setattr(self.state, f"current_{self.state.selected_channel.lower()}", min(2.3, max(0.0, value)))
             except:
                 pass
             dialog.open = False
@@ -161,7 +149,6 @@ class PN300GUI:
             self.page.update()
 
         input_field = ft.TextField(label=f"{mode} Wert", value="12.34", width=220)
-
         dialog = ft.AlertDialog(
             title=ft.Text(f"{mode} einstellen - Channel {self.state.selected_channel}"),
             content=input_field,
@@ -189,7 +176,7 @@ class PN300GUI:
         self.update_ui()
 
     def show_mem_menu(self):
-        print("💾 Memory Menu (noch nicht implementiert)")
+        print("Memory Menu")
 
 if __name__ == "__main__":
     ft.app(target=PN300GUI, view=ft.AppView.WEB_BROWSER, port=8501)
