@@ -51,7 +51,10 @@ class PN300GUI:
 
         # Button Helper
         def make_btn(text, width=75, color=None, on_click=None):
-            style = ft.ButtonStyle(bgcolor=color) if color else None
+            if color:
+                style = ft.ButtonStyle(bgcolor=color)
+            else:
+                style = None
             return ft.ElevatedButton(
                 content=ft.Text(text),
                 width=width,
