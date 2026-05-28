@@ -49,12 +49,14 @@ class PN300GUI:
 
         self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device_mode)
 
+        # Button Helper - stabile Version
         def make_btn(text, width=75, color=None, on_click=None):
+            btn_style = ft.ButtonStyle(bgcolor=color) if color else None
             return ft.ElevatedButton(
-                content=ft.Text(text),
+                text=text,
                 width=width,
                 height=62,
-                bgcolor=color,
+                style=btn_style,
                 on_click=on_click
             )
 
@@ -66,13 +68,13 @@ class PN300GUI:
                 make_btn("MEM", width=100, on_click=lambda e: self.show_mem_menu()),
                 make_btn("↑", on_click=lambda e: self.cursor_up()),
                 make_btn("A/B", on_click=lambda e: self.toggle_channel()),
-                make_btn("ENTER", width=100, bgcolor="#00cc00", on_click=lambda e: self.enter_value()),
+                make_btn("ENTER", width=100, color="#00cc00", on_click=lambda e: self.enter_value()),
                 make_btn("ESC", width=100, on_click=lambda e: self.cancel_edit()),
                 make_btn("←", width=60), 
                 make_btn("→", width=60), 
                 make_btn("↓", width=60),
                 make_btn("LOCAL", width=100, on_click=lambda e: self.toggle_remote()),
-                make_btn("OUT A/B", width=150, bgcolor="#00ff88", on_click=lambda e: self.toggle_output()),
+                make_btn("OUT A/B", width=150, color="#00ff88", on_click=lambda e: self.toggle_output()),
             ],
             runs_count=4,
             spacing=10,
@@ -109,7 +111,6 @@ class PN300GUI:
         self.use_real_device = e.control.value
         if self.use_real_device:
             self.device.connect()
-        print("Real Device Modus:", self.use_real_device)
 
     def toggle_channel(self):
         self.state.selected_channel = "B" if self.state.selected_channel == "A" else "A"
