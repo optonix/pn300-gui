@@ -11,9 +11,9 @@ class PN300State:
         self.selected_channel = "A"
         self.remote = False
 
-    def format_display(self):
-        ch = "A" if self.selected_channel == "A" else "B"
+    def get_display_values(self):
+        ch = self.selected_channel
         v = self.voltage_a if ch == "A" else self.voltage_b
         i = self.current_a if ch == "A" else self.current_b
         status = self.cv_cc_a if ch == "A" else self.cv_cc_b
-        return f"{v:5.2f}V  {i:6.3f}A  {status}"
+        return v, i, status

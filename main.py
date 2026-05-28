@@ -5,91 +5,90 @@ class PN300GUI:
     def __init__(self, page: ft.Page):
         self.page = page
         self.state = PN300State()
-        self.current_edit = None  # "V" or "I"
+        self.current_edit = None
         self.build_interface()
 
     def build_interface(self):
         self.page.title = "Digimess PN 300 - Simulator"
         self.page.theme_mode = ft.ThemeMode.DARK
-        self.page.bgcolor = "#0a0a0a"
-        self.page.padding = 20
-        self.page.window_width = 860
-        self.page.window_height = 740
+        self.page.bgcolor = "#111111"
+        self.page.padding = 30
+        self.page.window_width = 880
+        self.page.window_height = 760
 
         # Display
-        self.display_line1 = ft.Text("", size=23, color="#00ff41", font_family="Courier New", weight=ft.FontWeight.BOLD)
-        self.display_line2 = ft.Text("", size=21, color="#00ff41", font_family="Courier New")
+        self.display_line1 = ft.Text("", size=26, color="#00ff41", font_family="Courier New", weight=ft.FontWeight.BOLD)
+        self.display_line2 = ft.Text("", size=22, color="#00ff41", font_family="Courier New")
 
         self.display = ft.Container(
-            content=ft.Column([self.display_line1, self.display_line2], spacing=5),
+            content=ft.Column([self.display_line1, self.display_line2], spacing=8),
             bgcolor="#000000",
-            border=ft.border.all(6, "#00cc00"),
-            padding=30,
-            width=640,
-            height=140,
-            border_radius=8
+            border=ft.border.all(8, "#00cc00"),
+            padding=35,
+            width=680,
+            height=155,
+            border_radius=10,
         )
 
         # LEDs
-        self.led_ind = ft.Text("IND", color="#ffff00", size=16, weight="bold")
-        self.led_track = ft.Text("TRACK", color="#ffff00", size=16, weight="bold", visible=False)
-        self.led_par = ft.Text("PAR", color="#ffff00", size=16, weight="bold", visible=False)
-        self.led_remote = ft.Text("REMOTE", color="#ff4444", size=16, weight="bold", visible=False)
-
-        leds = ft.Row([self.led_ind, self.led_track, self.led_par, self.led_remote], spacing=25)
+        self.leds = {
+            "ind": ft.Text("IND", color="#ffff00", size=17, weight="bold"),
+            "track": ft.Text("TRACK", color="#ffff00", size=17, weight="bold", visible=False),
+            "par": ft.Text("PAR", color="#ffff00", size=17, weight="bold", visible=False),
+            "remote": ft.Text("REMOTE", color="#ff3333", size=17, weight="bold", visible=False),
+        }
+        led_row = ft.Row(list(self.leds.values()), spacing=30)
 
         # Buttons
-        def make_btn(text, width=72, color=None, on_click=None):
-            return ft.ElevatedButton(text=text, width=width, height=58, bgcolor=color, on_click=on_click)
+        def make_btn(text, width=75, color=None, on_click=None):
+            return ft.ElevatedButton(text=text, width=width, height=62, bgcolor=color, on_click=on_click,
+                                     style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
 
         buttons = ft.GridView(
             controls=[
                 make_btn("V", on_click=lambda e: self.start_edit("V")),
                 make_btn("I", on_click=lambda e: self.start_edit("I")),
-                make_btn("MODE", width=95, on_click=lambda e: self.show_mode_menu()),
-                make_btn("MEM", width=95, on_click=lambda e: self.show_mem_menu()),
+                make_btn("MODE", width=100, on_click=lambda e: self.show_mode_menu()),
+                make_btn("MEM", width=100, on_click=lambda e: self.show_mem_menu()),
                 make_btn("↑", on_click=lambda e: self.cursor_up()),
                 make_btn("A/B", on_click=lambda e: self.toggle_channel()),
-                make_btn("ENTER", width=95, bgcolor="#00cc00", on_click=lambda e: self.enter_value()),
-                make_btn("ESC", width=95, on_click=lambda e: self.cancel_edit()),
-                make_btn("←", width=55), make_btn("→", width=55), make_btn("↓", width=55),
-                make_btn("LOCAL", width=95, on_click=lambda e: self.toggle_remote()),
-                make_btn("OUT A/B", width=140, bgcolor="#00ff88", on_click=lambda e: self.toggle_output()),
+                make_btn("ENTER", width=100, bgcolor="#00cc00", on_click=lambda e: self.enter_value()),
+                make_btn("ESC", width=100, on_click=lambda e: self.cancel_edit()),
+                make_btn("←", width=60), make_btn("→", width=60), make_btn("↓", width=60),
+                make_btn("LOCAL", width=100, on_click=lambda e: self.toggle_remote()),
+                make_btn("OUT A/B", width=150, bgcolor="#00ff88", on_click=lambda e: self.toggle_output()),
             ],
             runs_count=4,
-            spacing=8,
-            max_extent=95,
-            height=320
+            spacing=10,
+            max_extent=100,
+            height=340
         )
 
         self.page.add(
             ft.Column([
-                ft.Text("DIGIMESS PN 300", size=30, weight="bold", color="white"),
+                ft.Text("DIGIMESS PN 300", size=32, weight="bold", color="#ffffff"),
                 self.display,
-                leds,
+                led_row,
                 buttons
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=25)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=30)
         )
 
         self.update_ui()
 
     def update_ui(self):
+        v, i, status = self.state.get_display_values()
         ch = self.state.selected_channel
-        v = self.state.voltage_a if ch == "A" else self.state.voltage_b
-        i = self.state.current_a if ch == "A" else self.state.current_b
-        status = self.state.cv_cc_a if ch == "A" else self.state.cv_cc_b
 
         self.display_line1.value = f"   {v:5.2f} V     {i:6.3f} A    {status}"
-        self.display_line2.value = f"   Channel {ch}      {'ON' if self.state.output_on else 'OFF'}      {self.state.mode} MODE"
+        self.display_line2.value = f"   Channel {ch}     {'ON ' if self.state.output_on else 'OFF'}     {self.state.mode} MODE"
 
-        self.led_ind.visible = self.state.mode == "IND"
-        self.led_track.visible = self.state.mode == "TRAC"
-        self.led_par.visible = self.state.mode == "PAR"
-        self.led_remote.visible = self.state.remote
+        self.leds["ind"].visible = self.state.mode == "IND"
+        self.leds["track"].visible = self.state.mode == "TRAC"
+        self.leds["par"].visible = self.state.mode == "PAR"
+        self.leds["remote"].visible = self.state.remote
 
         self.page.update()
 
-    # Weitere Methoden (toggle, cursor, edit usw.) bleiben wie bisher...
     def toggle_channel(self):
         self.state.selected_channel = "B" if self.state.selected_channel == "A" else "A"
         self.update_ui()
@@ -109,17 +108,44 @@ class PN300GUI:
             self.state.voltage_b = min(30.0, round(self.state.voltage_b + 0.1, 2))
         self.update_ui()
 
-    def start_edit(self, mode):
+    def start_edit(self, mode: str):
         self.current_edit = mode
-        print(f"Editing {mode} - Use keyboard or implement dialog")
+        self.show_number_input(mode)
+
+    def show_number_input(self, mode: str):
+        def on_save(e):
+            try:
+                value = float(input_field.value or "0")
+                if mode == "V":
+                    setattr(self.state, f"voltage_{self.state.selected_channel.lower()}", min(30.0, max(0.0, value)))
+                else:
+                    setattr(self.state, f"current_{self.state.selected_channel.lower()}", min(2.3, max(0.0, value)))
+            except:
+                pass
+            dialog.open = False
+            self.update_ui()
+            self.page.update()
+
+        input_field = ft.TextField(label=f"{mode} Wert", value="12.34", width=220)
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(f"{mode} einstellen - Channel {self.state.selected_channel}"),
+            content=input_field,
+            actions=[
+                ft.TextButton("Abbrechen", on_click=lambda e: setattr(dialog, 'open', False)),
+                ft.TextButton("Speichern", on_click=on_save),
+            ],
+        )
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
 
     def enter_value(self):
-        print("ENTER - Value saved")
+        self.current_edit = None
         self.update_ui()
 
     def cancel_edit(self):
         self.current_edit = None
-        print("Edit cancelled")
         self.update_ui()
 
     def show_mode_menu(self):
@@ -129,7 +155,7 @@ class PN300GUI:
         self.update_ui()
 
     def show_mem_menu(self):
-        print("Memory: Save / Load presets")
+        print("Memory Menu")
 
 if __name__ == "__main__":
     ft.app(target=PN300GUI, view=ft.AppView.WEB_BROWSER, port=8501)
