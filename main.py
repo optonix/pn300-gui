@@ -26,7 +26,12 @@ class PN300GUI:
         self.display = ft.Container(
             content=ft.Column([self.display_line1, self.display_line2], spacing=8),
             bgcolor="#000000",
-            border=ft.border.all(6, "#00cc00"),
+            border=ft.border.Border(
+                left=ft.border.BorderSide(6, "#00cc00"),
+                top=ft.border.BorderSide(6, "#00cc00"),
+                right=ft.border.BorderSide(6, "#00cc00"),
+                bottom=ft.border.BorderSide(6, "#00cc00")
+            ),
             padding=35,
             width=680,
             height=155,
