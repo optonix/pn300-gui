@@ -26,12 +26,7 @@ class PN300GUI:
         self.display = ft.Container(
             content=ft.Column([self.display_line1, self.display_line2], spacing=8),
             bgcolor="#000000",
-            border=ft.border.Border(
-                left=ft.border.BorderSide(6, "#00cc00"),
-                top=ft.border.BorderSide(6, "#00cc00"),
-                right=ft.border.BorderSide(6, "#00cc00"),
-                bottom=ft.border.BorderSide(6, "#00cc00")
-            ),
+            border=ft.border.all(6, "#00cc00"),
             padding=35,
             width=680,
             height=155,
@@ -49,10 +44,9 @@ class PN300GUI:
 
         self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device_mode)
 
-        # Button Helper
         def make_btn(text, width=75, color=None, on_click=None):
             return ft.ElevatedButton(
-                content=ft.Text(text),
+                text=text,
                 width=width,
                 height=62,
                 bgcolor=color,
