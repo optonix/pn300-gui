@@ -16,9 +16,10 @@ class PN300GUI:
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.bgcolor = "#0a0a0a"
         self.page.padding = 30
-        self.page.window_width = 900
-        self.page.window_height = 720
+        self.page.window_width = 920
+        self.page.window_height = 740
 
+        # Display
         self.display_line1 = ft.Text("", size=26, color="#00ff41", font_family="Courier New", weight=ft.FontWeight.BOLD)
         self.display_line2 = ft.Text("", size=22, color="#00ff41", font_family="Courier New")
 
@@ -37,6 +38,7 @@ class PN300GUI:
             border_radius=10,
         )
 
+        # LEDs
         self.leds = {
             "ind": ft.Text("IND", color="#ffff00", size=17, weight="bold"),
             "track": ft.Text("TRACK", color="#ffff00", size=17, weight="bold", visible=False),
@@ -44,6 +46,9 @@ class PN300GUI:
             "remote": ft.Text("REMOTE", color="#ff3333", size=17, weight="bold", visible=False),
         }
         led_row = ft.Row(list(self.leds.values()), spacing=30)
+
+        # Device Switch
+        self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device_mode)
 
         def make_btn(text, width=75, color=None, on_click=None):
             return ft.ElevatedButton(text=text, width=width, height=62, bgcolor=color, on_click=on_click)
@@ -71,10 +76,11 @@ class PN300GUI:
         self.page.add(
             ft.Column([
                 ft.Text("DIGIMESS PN 300", size=32, weight="bold", color="white"),
+                self.device_switch,
                 self.display,
                 led_row,
                 buttons
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=30)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=25)
         )
 
         self.update_ui()
@@ -82,6 +88,7 @@ class PN300GUI:
     def update_ui(self):
         v, i, status = self.state.get_display_values()
         ch = self.state.selected_channel
+
         self.display_line1.value = f"   {v:5.2f} V     {i:6.3f} A    {status}"
         self.display_line2.value = f"   Channel {ch}     {'ON ' if self.state.output_on else 'OFF'}     {self.state.mode}"
 
@@ -92,7 +99,12 @@ class PN300GUI:
 
         self.page.update()
 
-    # Einfache Methoden
+    def toggle_device_mode(self, e):
+        self.use_real_device = e.control.value
+        if self.use_real_device:
+            self.device.connect()
+        print("Real Device:", "AKTIV" if self.use_real_device else "Simulator")
+
     def toggle_channel(self):
         self.state.selected_channel = "B" if self.state.selected_channel == "A" else "A"
         self.update_ui()
@@ -114,7 +126,49 @@ class PN300GUI:
 
     def start_edit(self, mode):
         self.current_edit = mode
-        print(f"→ {mode} Eingabe (Dialog wird noch verbessert)")
+        self.show_number_input(mode)
+
+    def show_number_input(self, mode):
+        def on_save(e):
+            try:
+                value = float(input_field.value)
+                if mode == "V":
+                    if self.state.selected_channel == "A":
+                        self.state.voltage_a = min(30.0, max(0.0, value))
+                    else:
+                        self.state.voltage_b = min(30.0, max(0.0, value))
+                else:
+                    if self.state.selected_channel == "A":
+                        self.state.current_a = min(2.3, max(0.0, value))
+                    else:
+                        self.state.current_b = min(2.3, max(0.0, value))
+            except:
+                pass
+            dialog.open = False
+            self.update_ui()
+            self.page.update()
+
+        input_field = ft.TextField(label=f"{mode} Wert", value="12.34", width=220)
+
+        dialog = ft.AlertDialog(
+            title=ft.Text(f"{mode} einstellen - Channel {self.state.selected_channel}"),
+            content=input_field,
+            actions=[
+                ft.TextButton("Abbrechen", on_click=lambda e: setattr(dialog, 'open', False)),
+                ft.TextButton("Speichern", on_click=on_save),
+            ],
+        )
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def enter_value(self):
+        self.current_edit = None
+        self.update_ui()
+
+    def cancel_edit(self):
+        self.current_edit = None
+        self.update_ui()
 
     def show_mode_menu(self):
         modes = ["IND", "TRAC", "PAR"]
@@ -123,7 +177,7 @@ class PN300GUI:
         self.update_ui()
 
     def show_mem_menu(self):
-        print("MEM - Preset Menu")
+        print("💾 Memory Menu (noch nicht implementiert)")
 
 if __name__ == "__main__":
     ft.app(target=PN300GUI, view=ft.AppView.WEB_BROWSER, port=8501)
