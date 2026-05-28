@@ -52,7 +52,7 @@ class PN300GUI:
         # Button Helper
         def make_btn(text, width=75, color=None, on_click=None):
             return ft.ElevatedButton(
-                text=text,
+                content=ft.Text(text),   # <-- Das ist die wichtige Änderung
                 width=width,
                 height=62,
                 bgcolor=color,
