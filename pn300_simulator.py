@@ -4,7 +4,7 @@ class PN300State:
         self.current_a = 0.001
         self.voltage_b = 0.00
         self.current_b = 0.001
-        self.mode = "IND"          # IND, TRAC, PAR
+        self.mode = "IND"  # IND, TRAC, PAR
         self.output_on = False
         self.cv_cc_a = "CV"
         self.cv_cc_b = "CV"

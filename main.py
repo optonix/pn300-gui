@@ -1,10 +1,13 @@
 import flet as ft
 from pn300_simulator import PN300State
+from pn300_device import PN300Device
 
 class PN300GUI:
     def __init__(self, page: ft.Page):
         self.page = page
         self.state = PN300State()
+        self.device = PN300Device(port="COM3")  # Anpassen an deinen Port!
+        self.use_real_device = False
         self.current_edit = None
         self.build_interface()
 
@@ -14,7 +17,14 @@ class PN300GUI:
         self.page.bgcolor = "#111111"
         self.page.padding = 30
         self.page.window_width = 880
-        self.page.window_height = 760
+        self.page.window_height = 780
+
+        # Device Switch
+        self.device_switch = ft.Switch(
+            label="Real Device (RS-232)",
+            value=self.use_real_device,
+            on_change=self.toggle_device_mode
+        )
 
         # Display
         self.display_line1 = ft.Text("", size=26, color="#00ff41", font_family="Courier New", weight=ft.FontWeight.BOLD)
@@ -67,13 +77,22 @@ class PN300GUI:
         self.page.add(
             ft.Column([
                 ft.Text("DIGIMESS PN 300", size=32, weight="bold", color="#ffffff"),
+                self.device_switch,
                 self.display,
                 led_row,
                 buttons
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=30)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
         )
 
         self.update_ui()
+
+    def toggle_device_mode(self, e):
+        self.use_real_device = e.control.value
+        if self.use_real_device:
+            if not self.device.connect():
+                self.use_real_device = False
+                self.device_switch.value = False
+                self.page.update()
 
     def update_ui(self):
         v, i, status = self.state.get_display_values()
@@ -95,6 +114,11 @@ class PN300GUI:
 
     def toggle_output(self):
         self.state.output_on = not self.state.output_on
+        if self.use_real_device:
+            if self.state.output_on:
+                self.device.output_on()
+            else:
+                self.device.output_off()
         self.update_ui()
 
     def toggle_remote(self):
@@ -117,9 +141,19 @@ class PN300GUI:
             try:
                 value = float(input_field.value or "0")
                 if mode == "V":
-                    setattr(self.state, f"voltage_{self.state.selected_channel.lower()}", min(30.0, max(0.0, value)))
+                    if self.state.selected_channel == "A":
+                        self.state.voltage_a = min(30.0, max(0.0, value))
+                    else:
+                        self.state.voltage_b = min(30.0, max(0.0, value))
+                    if self.use_real_device:
+                        self.device.set_voltage(self.state.selected_channel, value)
                 else:
-                    setattr(self.state, f"current_{self.state.selected_channel.lower()}", min(2.3, max(0.0, value)))
+                    if self.state.selected_channel == "A":
+                        self.state.current_a = min(2.3, max(0.0, value))
+                    else:
+                        self.state.current_b = min(2.3, max(0.0, value))
+                    if self.use_real_device:
+                        self.device.set_current(self.state.selected_channel, value)
             except:
                 pass
             dialog.open = False
@@ -152,10 +186,12 @@ class PN300GUI:
         modes = ["IND", "TRAC", "PAR"]
         idx = modes.index(self.state.mode)
         self.state.mode = modes[(idx + 1) % 3]
+        if self.use_real_device:
+            self.device.set_mode(self.state.mode)
         self.update_ui()
 
     def show_mem_menu(self):
-        print("Memory Menu")
+        print("Memory Menu - später erweiterbar")
 
 if __name__ == "__main__":
     ft.app(target=PN300GUI, view=ft.AppView.WEB_BROWSER, port=8501)
