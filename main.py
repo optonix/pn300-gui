@@ -1,13 +1,12 @@
 import flet as ft
 from pn300_simulator import PN300State
 from pn300_device import PN300Device
-import logging
 
 class PN300GUI:
     def __init__(self, page: ft.Page):
         self.page = page
         self.state = PN300State()
-        self.device = PN300Device(port="COM3")  # <--- Hier Port anpassen!
+        self.device = PN300Device(port="COM3")
         self.use_real_device = False
         self.current_edit = None
         self.build_interface()
@@ -16,28 +15,28 @@ class PN300GUI:
         self.page.title = "Digimess PN 300 - Control"
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.bgcolor = "#0a0a0a"
-        self.page.padding = 20
+        self.page.padding = 30
         self.page.window_width = 900
-        self.page.window_height = 780
+        self.page.window_height = 720
 
-        self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device)
-        self.status_text = ft.Text("Simulator aktiv", color="green")
-
-        # Display
         self.display_line1 = ft.Text("", size=26, color="#00ff41", font_family="Courier New", weight=ft.FontWeight.BOLD)
         self.display_line2 = ft.Text("", size=22, color="#00ff41", font_family="Courier New")
 
         self.display = ft.Container(
             content=ft.Column([self.display_line1, self.display_line2], spacing=8),
             bgcolor="#000000",
-            border=ft.border.all(8, "#00cc00"),
+            border=ft.border.Border(
+                left=ft.border.BorderSide(6, "#00cc00"),
+                top=ft.border.BorderSide(6, "#00cc00"),
+                right=ft.border.BorderSide(6, "#00cc00"),
+                bottom=ft.border.BorderSide(6, "#00cc00")
+            ),
             padding=35,
             width=680,
             height=155,
             border_radius=10,
         )
 
-        # LEDs
         self.leds = {
             "ind": ft.Text("IND", color="#ffff00", size=17, weight="bold"),
             "track": ft.Text("TRACK", color="#ffff00", size=17, weight="bold", visible=False),
@@ -46,10 +45,8 @@ class PN300GUI:
         }
         led_row = ft.Row(list(self.leds.values()), spacing=30)
 
-        # Buttons
         def make_btn(text, width=75, color=None, on_click=None):
-            return ft.ElevatedButton(text=text, width=width, height=62, bgcolor=color, on_click=on_click,
-                                     style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
+            return ft.ElevatedButton(text=text, width=width, height=62, bgcolor=color, on_click=on_click)
 
         buttons = ft.GridView(
             controls=[
@@ -73,13 +70,11 @@ class PN300GUI:
 
         self.page.add(
             ft.Column([
-                ft.Text("DIGIMESS PN 300", size=34, weight="bold", color="#ffffff"),
-                self.device_switch,
-                self.status_text,
+                ft.Text("DIGIMESS PN 300", size=32, weight="bold", color="white"),
                 self.display,
                 led_row,
                 buttons
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=25)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=30)
         )
 
         self.update_ui()
@@ -87,9 +82,8 @@ class PN300GUI:
     def update_ui(self):
         v, i, status = self.state.get_display_values()
         ch = self.state.selected_channel
-
         self.display_line1.value = f"   {v:5.2f} V     {i:6.3f} A    {status}"
-        self.display_line2.value = f"   Channel {ch}     {'ON ' if self.state.output_on else 'OFF'}     {self.state.mode} MODE"
+        self.display_line2.value = f"   Channel {ch}     {'ON ' if self.state.output_on else 'OFF'}     {self.state.mode}"
 
         self.leds["ind"].visible = self.state.mode == "IND"
         self.leds["track"].visible = self.state.mode == "TRAC"
@@ -98,15 +92,7 @@ class PN300GUI:
 
         self.page.update()
 
-    def toggle_device(self, e):
-        self.use_real_device = e.control.value
-        if self.use_real_device:
-            success = self.device.connect()
-            self.status_text.value = "✅ Real Device verbunden" if success else "❌ Verbindung fehlgeschlagen"
-        else:
-            self.status_text.value = "Simulator aktiv"
-        self.page.update()
-
+    # Einfache Methoden
     def toggle_channel(self):
         self.state.selected_channel = "B" if self.state.selected_channel == "A" else "A"
         self.update_ui()
@@ -126,67 +112,18 @@ class PN300GUI:
             self.state.voltage_b = min(30.0, round(self.state.voltage_b + 0.1, 2))
         self.update_ui()
 
-    def start_edit(self, mode: str):
+    def start_edit(self, mode):
         self.current_edit = mode
-        self.show_number_input(mode)
-
-    def show_number_input(self, mode: str):
-        def on_save(e):
-            try:
-                value = float(input_field.value or "0")
-                if mode == "V":
-                    if self.state.selected_channel == "A":
-                        self.state.voltage_a = min(30.0, max(0.0, value))
-                    else:
-                        self.state.voltage_b = min(30.0, max(0.0, value))
-                else:
-                    if self.state.selected_channel == "A":
-                        self.state.current_a = min(2.3, max(0.0, value))
-                    else:
-                        self.state.current_b = min(2.3, max(0.0, value))
-                if self.use_real_device:
-                    if mode == "V":
-                        self.device.set_voltage(self.state.selected_channel, value)
-                    else:
-                        self.device.set_current(self.state.selected_channel, value)
-            except:
-                pass
-            dialog.open = False
-            self.update_ui()
-            self.page.update()
-
-        input_field = ft.TextField(label=f"{mode} Wert", value="12.34", width=220)
-
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"{mode} einstellen - Channel {self.state.selected_channel}"),
-            content=input_field,
-            actions=[
-                ft.TextButton("Abbrechen", on_click=lambda e: setattr(dialog, 'open', False)),
-                ft.TextButton("Speichern", on_click=on_save),
-            ],
-        )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
-
-    def enter_value(self):
-        self.current_edit = None
-        self.update_ui()
-
-    def cancel_edit(self):
-        self.current_edit = None
-        self.update_ui()
+        print(f"→ {mode} Eingabe (Dialog wird noch verbessert)")
 
     def show_mode_menu(self):
         modes = ["IND", "TRAC", "PAR"]
         idx = modes.index(self.state.mode)
         self.state.mode = modes[(idx + 1) % 3]
-        if self.use_real_device:
-            self.device.set_mode(self.state.mode)
         self.update_ui()
 
     def show_mem_menu(self):
-        print("Memory Menu - Save/Recall coming soon")
+        print("MEM - Preset Menu")
 
 if __name__ == "__main__":
     ft.app(target=PN300GUI, view=ft.AppView.WEB_BROWSER, port=8501)
