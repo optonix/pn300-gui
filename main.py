@@ -44,6 +44,7 @@ class PN300GUI:
 
         self.device_switch = ft.Switch(label="Real Device (RS-232)", on_change=self.toggle_device_mode)
 
+        # Button Helper
         def make_btn(text, width=75, color=None, on_click=None):
             return ft.ElevatedButton(
                 text=text,
