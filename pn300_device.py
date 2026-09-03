@@ -1,66 +1,79 @@
-import serial
-import time
 import logging
-from typing import Optional, Tuple
+import time
+from typing import List, Optional
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import serial
+from serial.tools import list_ports
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 class PN300Device:
+    """RS-232 Schnittstelle zum Digimess / Grundig PN 300."""
+
     def __init__(self, port: str = "COM3", baudrate: int = 9600):
         self.port = port
         self.baudrate = baudrate
         self.ser: Optional[serial.Serial] = None
         self.connected = False
 
-    def connect(self) -> bool:
+    @staticmethod
+    def list_ports() -> List[str]:
+        return [p.device for p in list_ports.comports()]
+
+    def connect(self, port: Optional[str] = None) -> bool:
+        if port:
+            self.port = port
         try:
-            self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
+            if self.ser and self.ser.is_open:
+                self.ser.close()
+            self.ser = serial.Serial(
+                self.port,
+                self.baudrate,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                timeout=1,
+            )
             self.connected = True
-            logging.info(f"✅ Verbunden mit PN300 auf {self.port}")
-            # Testverbindung
-            idn = self.get_idn()
-            logging.info(f"Geräte-ID: {idn}")
+            logging.info("Verbunden mit PN300 auf %s", self.port)
             return True
         except Exception as e:
-            logging.error(f"❌ Verbindungsfehler: {e}")
+            self.connected = False
+            logging.error("Verbindungsfehler: %s", e)
             return False
 
     def send_command(self, cmd: str) -> str:
         if not self.connected or not self.ser:
             return "ERROR: Not connected"
         try:
-            self.ser.write(f"{cmd}\r\n".encode('ascii'))
-            time.sleep(0.3)
-            response = self.ser.readline().decode('ascii', errors='ignore').strip()
-            logging.info(f"→ {cmd} | ← {response}")
+            self.ser.reset_input_buffer()
+            self.ser.write(f"{cmd}\r\n".encode("ascii"))
+            time.sleep(0.25)
+            response = self.ser.readline().decode("ascii", errors="ignore").strip()
+            logging.info("→ %s | ← %s", cmd, response)
             return response if response else "OK"
         except Exception as e:
-            logging.error(f"Kommunikationsfehler: {e}")
+            logging.error("Kommunikationsfehler: %s", e)
             return f"ERROR: {e}"
 
-    # === Grundbefehle ===
     def get_idn(self) -> str:
         return self.send_command("*IDN?")
 
     def set_voltage(self, channel: str, voltage: float) -> str:
-        ch = channel.upper()
-        return self.send_command(f"VSET{ch} {voltage:.2f}")
+        return self.send_command(f"VSET{channel.upper()} {voltage:.2f}")
 
     def set_current(self, channel: str, current: float) -> str:
-        ch = channel.upper()
-        return self.send_command(f"ISET{ch} {current:.3f}")
+        return self.send_command(f"ISET{channel.upper()} {current:.3f}")
 
     def get_voltage(self, channel: str) -> str:
-        ch = channel.upper()
-        return self.send_command(f"VOUT{ch}?")
+        return self.send_command(f"VOUT{channel.upper()}?")
 
     def get_current(self, channel: str) -> str:
-        ch = channel.upper()
-        return self.send_command(f"IOUT{ch}?")
+        return self.send_command(f"IOUT{channel.upper()}?")
 
     def set_mode(self, mode: str) -> str:
-        mode = mode.upper()
-        return self.send_command(f"OPER:{mode}")
+        return self.send_command(f"OPER:{mode.upper()}")
 
     def output_on(self) -> str:
         return self.send_command("OUT ON")
@@ -68,7 +81,6 @@ class PN300Device:
     def output_off(self) -> str:
         return self.send_command("OUT OFF")
 
-    # === Erweiterte Befehle ===
     def save_preset(self, num: int) -> str:
         return self.send_command(f"*SAV {num}")
 
@@ -86,5 +98,8 @@ class PN300Device:
 
     def close(self):
         if self.ser:
-            self.ser.close()
-            self.connected = False
+            try:
+                self.ser.close()
+            except Exception:
+                pass
+        self.connected = False
