@@ -187,8 +187,8 @@ class PN300Panel:
 
         status_leds = ft.Column(
             [
-                ft.Row([self.led("cc_a", "#e23b3b"), ft.Text("CC", size=11)], spacing=6),
-                ft.Row([self.led("cc_b", "#e23b3b"), ft.Text("CC", size=11)], spacing=6),
+                ft.Row([ft.Text("CC", size=11), self.led("cc_a", "#e23b3b")], spacing=6),
+                ft.Row([ft.Text("CC", size=11), self.led("cc_b", "#e23b3b")], spacing=6),
             ],
             spacing=12,
         )
@@ -268,20 +268,20 @@ class PN300Panel:
 
         remote_block = ft.Column(
             [
-                self.led("remote", "#d7a21a"),
                 ft.Text("REMOTE", size=10, color="#6a645c"),
+                self.led("remote", "#d7a21a"),
                 self.key_button("LOCAL", self.on_local, width=92),
             ],
-            spacing=4,
+            spacing=6,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         out_block = ft.Column(
             [
-                self.led("out", "#3ddc6a"),
                 ft.Text("ON", size=10, color="#6a645c"),
+                self.led("out", "#3ddc6a"),
                 self.key_button("OUT A/B", self.on_out, width=92),
             ],
-            spacing=4,
+            spacing=6,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -305,13 +305,14 @@ class PN300Panel:
             content=ft.Column(
                 [
                     ft.Row(
-                        [power, cv_block, lcd, status_leds, mode_leds, ft.Container(expand=True), sockets],
+                        [cv_block, lcd, status_leds, mode_leds, ft.Container(expand=True), sockets],
                         spacing=18,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Divider(height=1, color="#e4e0d6"),
                     ft.Row(
                         [
+                            power,
                             set_keys,
                             select_keys,
                             adjust_keys,
@@ -320,7 +321,7 @@ class PN300Panel:
                             out_block,
                         ],
                         spacing=12,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.END,
                     ),
                 ],
                 spacing=12,
