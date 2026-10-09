@@ -1,6 +1,6 @@
 # pn300-gui
 
-Fenster für das Digimess / Grundig PN 300. Die Anordnung folgt dem Frontpanel: Netzschalter, CV- und CC-LEDs, zweizeiliges Display, IND / TRACK / PAR, Buchsen A, B und C, Tastenfelder SET, SELECT und ADJUST.
+Programm zum Bedienen eines Digimess / Grundig PN 300 vom Windows-Rechner aus. Die Oberfläche sieht aus wie das Frontpanel des Geräts. Spannung, Strom, Betriebsart und die Ausgänge gehen über die serielle Schnittstelle an das Netzteil. Ohne angeschlossenes Gerät läuft dasselbe Fenster gegen einen Simulator.
 
 Die Tasten kennen die serielle Leitung nicht. Sie rufen nur `pn300/device.py` auf. Dahinter sitzt entweder der Simulator oder ein COM-Port.
 
