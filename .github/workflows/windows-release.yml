@@ -1,0 +1,41 @@
+name: Windows-Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Pakete installieren
+        run: pip install -r requirements.txt
+
+      - name: Programm packen
+        run: flet pack main.py -n PN300 --product-name "Digimess PN 300" --hidden-import serial.tools.list_ports
+
+      - name: Ausgabe prüfen
+        shell: pwsh
+        run: Get-ChildItem -Recurse dist | Select-Object FullName
+
+      - name: Zip bauen
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse dist -Filter PN300.exe | Select-Object -First 1
+          if (-not $exe) { throw "PN300.exe nicht gefunden" }
+          Compress-Archive -Path $exe.Directory.FullName -DestinationPath PN300-windows.zip
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: PN300-windows.zip
+          fail_on_unmatched_files: true

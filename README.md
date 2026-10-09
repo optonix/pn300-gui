@@ -68,3 +68,5 @@ flet pack main.py -n PN300 --product-name "Digimess PN 300"
 ```
 
 Die Datei liegt danach unter `dist/`. Gegen das echte Gerät ist der Stand noch nicht gelaufen.
+
+Ein Tag `v0.1.0` startet den Workflow unter `.github/workflows/windows-release.yml`. Der baut auf einem Windows-Runner dasselbe Paket und hängt `PN300-windows.zip` an das Release.
