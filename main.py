@@ -9,6 +9,11 @@ from __future__ import annotations
 
 import flet as ft
 
+try:
+    from serial.tools import list_ports
+except ImportError:
+    list_ports = None
+
 LCD_COLS = 16
 V_MAX = 30.0
 I_MAX = 2.3
@@ -56,6 +61,14 @@ class PN300Panel:
         self.remote_caption = ft.Text("LOCAL", size=11, weight=ft.FontWeight.W_600, color="#3c4038")
         self.out_caption = ft.Text("OUT A/B", size=11, weight=ft.FontWeight.W_600, color="#3c4038")
         self.footer = ft.Text("", size=12, color="#5c564c")
+        self.port = ft.Dropdown(
+            width=220,
+            value="Simulator",
+            options=[ft.dropdown.Option("Simulator")],
+            text_size=13,
+            content_padding=8,
+            on_change=self.on_port,
+        )
 
     def led(self, key: str, on: str) -> ft.Container:
         dot = ft.Container(
@@ -335,7 +348,19 @@ class PN300Panel:
                 [
                     header,
                     face,
-                    ft.Container(self.footer, padding=ft.padding.only(left=16, right=16, bottom=8)),
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Text("Schnittstelle", size=12, color="#5c564c"),
+                                self.port,
+                                self.key_button("Suchen", self.scan_ports, width=84, height=32),
+                                self.footer,
+                            ],
+                            spacing=10,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=ft.padding.only(left=16, right=16, bottom=10),
+                    ),
                 ],
                 spacing=0,
             ),
@@ -344,6 +369,7 @@ class PN300Panel:
             border=ft.border.all(1, "#c9b58a"),
             width=1040,
         )
+        self.scan_ports()
         self.refresh()
         return shell
 
@@ -372,6 +398,22 @@ class PN300Panel:
         self.footer.value = self._footer()
         self.page.update()
 
+    def scan_ports(self, _e=None) -> None:
+        found = ["Simulator"]
+        if list_ports is not None:
+            found.extend(port.device for port in list_ports.comports())
+        current = self.port.value if self.port.value in found else "Simulator"
+        self.port.options = [ft.dropdown.Option(name) for name in found]
+        self.port.value = current
+        if _e is not None:
+            self.state.message = ""
+            self.refresh()
+
+    def on_port(self, e) -> None:
+        self.port.value = e.control.value
+        self.state.message = ""
+        self.refresh()
+
     def _reading(self, volts: float, amps: float) -> str:
         return f"{volts:5.2f}V {amps:6.3f}A"
 
@@ -397,9 +439,10 @@ class PN300Panel:
 
     def _footer(self) -> str:
         s = self.state
+        port = self.port.value or "Simulator"
         link = "Remote" if s.remote else "Local"
         power = "Netz ein" if s.mains else "Netz aus"
-        return f"{power}   ·   {link}   ·   Speicher {s.mem_slot:02d}   ·   Simulator, noch ohne RS-232"
+        return f"{power}   ·   {link}   ·   Speicher {s.mem_slot:02d}   ·   {port}   ·   9600 8N1"
 
     def toggle_mains(self, _e) -> None:
         self.state.mains = not self.state.mains
@@ -446,8 +489,8 @@ class PN300Panel:
     def on_syst(self, _e) -> None:
         if not self.state.mains:
             return
-        self.state.edit = None
-        self.state.message = "RS232 9600 8N1"
+        self.scan_ports()
+        self.state.message = (self.port.value or "Simulator")[:16]
         self.refresh()
 
     def on_ab(self, _e) -> None:
@@ -553,9 +596,9 @@ class PN300Panel:
 def main(page: ft.Page) -> None:
     page.title = "Digimess PN 300"
     page.window_width = 1100
-    page.window_height = 560
+    page.window_height = 600
     page.window_min_width = 1100
-    page.window_min_height = 560
+    page.window_min_height = 600
     page.padding = 18
     page.bgcolor = "#d9d3c6"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
