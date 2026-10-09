@@ -32,15 +32,14 @@ class Device:
     def close(self) -> None:
         self._link.close()
 
-    def _send(self, command: str) -> None:
-        if self.port_name == "Simulator":
-            self._link.send(command)
-            return
+    def _send(self, command: str) -> str:
         try:
-            self._link.send(command)
+            answer = self._link.send(command)
             self.last_error = ""
+            return answer
         except Exception as exc:
             self.last_error = str(exc)
+            return ""
 
     def set_voltage(self, channel: str, value: float) -> None:
         self._send(protocol.select_channel(channel))
@@ -53,8 +52,15 @@ class Device:
     def set_mode(self, mode: str) -> None:
         self._send(protocol.operating_mode(mode))
 
-    def set_output(self, enabled: bool) -> None:
-        self._send(protocol.output(enabled))
+    def set_output(self, enabled: bool) -> bool:
+        self._send(protocol.output_on() if enabled else protocol.output_off())
+        answer = self._send(protocol.output_query())
+        parsed = protocol.parse_output(answer)
+        if parsed is None:
+            self.state.output_on = enabled
+            return enabled
+        self.state.output_on = parsed
+        return parsed
 
     def set_local(self) -> None:
         self._send(protocol.local())

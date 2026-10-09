@@ -530,7 +530,6 @@ class PN300Panel:
     def on_out(self, _e) -> None:
         if not self.state.mains:
             return
-        self.state.output_on = not self.state.output_on
+        self.state.output_on = self.device.set_output(not self.state.output_on)
         self.state.message = ""
-        self.device.set_output(self.state.output_on)
         self.refresh()

@@ -19,8 +19,25 @@ def current_set(value: float) -> str:
     return f"ISET {value:.3f}"
 
 
-def output(enabled: bool) -> str:
-    return "OUT_ON" if enabled else "OUT_OFF"
+def output_on() -> str:
+    return "OUT_ON"
+
+
+def output_off() -> str:
+    return "OUT_OFF"
+
+
+def output_query() -> str:
+    return "OUT?"
+
+
+def parse_output(answer: str) -> bool | None:
+    text = answer.strip().upper()
+    if "OUT_ON" in text:
+        return True
+    if "OUT_OFF" in text:
+        return False
+    return None
 
 
 def local() -> str:

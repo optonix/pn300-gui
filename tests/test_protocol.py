@@ -16,6 +16,14 @@ class DisplayAndProtocol(unittest.TestCase):
         self.assertEqual(protocol.voltage_set(12.5), "VSET 12.50")
         self.assertEqual(protocol.current_set(1), "ISET 1.000")
 
+    def test_output_commands(self) -> None:
+        self.assertEqual(protocol.output_on(), "OUT_ON")
+        self.assertEqual(protocol.output_off(), "OUT_OFF")
+        self.assertEqual(protocol.output_query(), "OUT?")
+        self.assertTrue(protocol.parse_output("OUT_ON"))
+        self.assertFalse(protocol.parse_output("OUT_OFF"))
+        self.assertIsNone(protocol.parse_output("ERR"))
+
 
 if __name__ == "__main__":
     unittest.main()

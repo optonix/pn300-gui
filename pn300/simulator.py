@@ -12,6 +12,14 @@ class Simulator:
 
     def send(self, command: str) -> str:
         self.sent.append(command)
+        if command == "OUT_ON":
+            self.state.output_on = True
+            return "OUT_ON"
+        if command == "OUT_OFF":
+            self.state.output_on = False
+            return "OUT_OFF"
+        if command == "OUT?":
+            return "OUT_ON" if self.state.output_on else "OUT_OFF"
         return "OK"
 
     def close(self) -> None:
