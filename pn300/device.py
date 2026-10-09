@@ -24,6 +24,8 @@ class Device:
             return
         try:
             self._link = SerialTransport(self.port_name)
+            self._send(protocol.DCL + protocol.REN + "*CLS")
+            self.state.remote = True
         except Exception as exc:
             self.last_error = str(exc)
             self.port_name = "Simulator"
@@ -42,12 +44,10 @@ class Device:
             return ""
 
     def set_voltage(self, channel: str, value: float) -> None:
-        self._send(protocol.select_channel(channel))
-        self._send(protocol.voltage_set(value))
+        self._send(protocol.join_commands(protocol.select_channel(channel), protocol.voltage_set(value)))
 
     def set_current(self, channel: str, value: float) -> None:
-        self._send(protocol.select_channel(channel))
-        self._send(protocol.current_set(value))
+        self._send(protocol.join_commands(protocol.select_channel(channel), protocol.current_set(value)))
 
     def set_mode(self, mode: str) -> None:
         self._send(protocol.operating_mode(mode))
@@ -63,4 +63,4 @@ class Device:
         return parsed
 
     def set_local(self) -> None:
-        self._send(protocol.local())
+        self._send(protocol.GTL)

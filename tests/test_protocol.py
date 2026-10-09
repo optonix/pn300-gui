@@ -23,6 +23,11 @@ class DisplayAndProtocol(unittest.TestCase):
         self.assertTrue(protocol.parse_output("OUT_ON"))
         self.assertFalse(protocol.parse_output("OUT_OFF"))
         self.assertIsNone(protocol.parse_output("ERR"))
+        self.assertEqual(protocol.join_commands("SEL_A", "VSET 10.00", "ISET 0.100"), "SEL_A;VSET 10.00;ISET 0.100")
+        self.assertEqual(protocol.save_preset(1), "*SAV 1")
+        self.assertEqual(protocol.recall_preset(0), "*RCL 0")
+        self.assertEqual(protocol.REN, "\t")
+        self.assertEqual(protocol.GTL, "\x01")
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ class SerialTransport:
         )
 
     def send(self, command: str) -> str:
-        self._serial.write(f"{command}\r\n".encode("ascii"))
+        self._serial.write(f"{command}\n".encode("ascii"))
         return self._serial.readline().decode("ascii", errors="replace").strip()
 
     def close(self) -> None:
