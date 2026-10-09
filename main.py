@@ -372,6 +372,9 @@ class PN300Panel:
         self.footer.value = self._footer()
         self.page.update()
 
+    def _reading(self, volts: float, amps: float) -> str:
+        return f"{volts:5.2f}V {amps:6.3f}A"
+
     def _line1(self) -> str:
         s = self.state
         if s.message:
@@ -380,7 +383,7 @@ class PN300Panel:
             return f"VOLTAGE_{s.channel}"
         if s.edit == "I":
             return f"CURRENT_{s.channel}"
-        return f"{s.channel} {s.selected_v():5.2f}V"
+        return self._reading(s.va, s.ia)
 
     def _line2(self) -> str:
         s = self.state
@@ -390,8 +393,7 @@ class PN300Panel:
             return f"  SET:[{s.draft:>7}]"
         if s.edit == "I":
             return f"  SET:[{s.draft:>7}]"
-        mark = "ON " if s.output_on else "OFF"
-        return f"{mark} {s.mode:<5} {s.selected_i():5.3f}A"
+        return self._reading(s.vb, s.ib)
 
     def _footer(self) -> str:
         s = self.state
