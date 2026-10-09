@@ -10,10 +10,10 @@ from pn300_gui.panel import PN300Panel
 
 def main(page: ft.Page) -> None:
     page.title = "Digimess PN 300"
-    page.window_width = 1100
-    page.window_height = 600
-    page.window_min_width = 1100
-    page.window_min_height = 600
+    page.window_width = 1240
+    page.window_height = 640
+    page.window_min_width = 1240
+    page.window_min_height = 640
     page.padding = 18
     page.bgcolor = "#d9d3c6"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER

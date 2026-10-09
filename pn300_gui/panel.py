@@ -6,6 +6,7 @@ import flet as ft
 
 from pn300.device import Device
 from pn300.model import MODES, V_MAX
+from pn300.protocol import BAUD_RATES
 from pn300_gui.display import fit16, reading
 from pn300_gui.ports import list_serial_ports
 
@@ -25,6 +26,22 @@ class PN300Panel:
             text_size=13,
             content_padding=8,
             on_change=self.on_port,
+        )
+        self.baud = ft.Dropdown(
+            width=100,
+            value="9600",
+            options=[ft.dropdown.Option(str(rate)) for rate in BAUD_RATES],
+            text_size=13,
+            content_padding=8,
+            on_change=self.on_baud,
+        )
+        self.handshake = ft.Dropdown(
+            width=120,
+            value="keines",
+            options=[ft.dropdown.Option("keines"), ft.dropdown.Option("RTS/CTS")],
+            text_size=13,
+            content_padding=8,
+            on_change=self.on_handshake,
         )
 
     @property
@@ -295,7 +312,13 @@ class PN300Panel:
                             [
                                 ft.Text("Schnittstelle", size=12, color="#5c564c"),
                                 self.port,
+                                self.baud,
+                                self.handshake,
                                 self.key_button("Suchen", self.scan_ports, width=84, height=32),
+                                self.key_button("CV/CC", self.on_function, width=72, height=32),
+                                self.key_button("Schutz", self.on_protection, width=78, height=32),
+                                self.key_button("Reset", self.on_reset, width=72, height=32),
+                                self.key_button("Sperre", self.on_lock, width=72, height=32),
                                 self.footer,
                             ],
                             spacing=10,
@@ -309,7 +332,7 @@ class PN300Panel:
             bgcolor="#e7d7b4",
             border_radius=8,
             border=ft.border.all(1, "#c9b58a"),
-            width=1040,
+            width=1180,
         )
         self.scan_ports()
         self.refresh()
@@ -332,10 +355,10 @@ class PN300Panel:
         self.set_led("par", s.mains and s.mode == "PAR")
         self.set_led("remote", s.mains and s.remote)
         self.set_led("out", s.mains and s.output_on)
-        self.set_led("cv_a", s.mains and s.output_on and s.mode != "PAR")
-        self.set_led("cv_b", s.mains and s.output_on)
-        self.set_led("cc_a", False)
-        self.set_led("cc_b", False)
+        self.set_led("cv_a", s.mains and s.output_on and s.cont_a == "CV")
+        self.set_led("cv_b", s.mains and s.output_on and s.cont_b == "CV")
+        self.set_led("cc_a", s.mains and s.output_on and s.cont_a == "CC")
+        self.set_led("cc_b", s.mains and s.output_on and s.cont_b == "CC")
         self.footer.value = self._footer()
         self.page.update()
 
@@ -347,7 +370,9 @@ class PN300Panel:
             return f"VOLTAGE_{s.channel}"
         if s.edit == "I":
             return f"CURRENT_{s.channel}"
-        return reading(s.va, s.ia)
+        volts = s.measured_va if s.output_on else s.va
+        amps = s.measured_ia if s.output_on else s.ia
+        return reading(volts, amps)
 
     def _line2(self) -> str:
         s = self.state
@@ -355,15 +380,17 @@ class PN300Panel:
             return ""
         if s.edit in ("V", "I"):
             return f"  SET:[{s.draft:>7}]"
-        return reading(s.vb, s.ib)
+        volts = s.measured_vb if s.output_on else s.vb
+        amps = s.measured_ib if s.output_on else s.ib
+        return reading(volts, amps)
 
     def _footer(self) -> str:
         s = self.state
-        port = self.device.port_name
-        link = "Remote" if s.remote else "Local"
+        handshake = "RTS/CTS" if s.rtscts else "keines"
+        link = "Remote gesperrt" if s.lockout else "Remote" if s.remote else "Local"
         power = "Netz ein" if s.mains else "Netz aus"
-        hint = self.device.last_error or f"{port}   ·   9600 8N1"
-        return f"{power}   ·   {link}   ·   Speicher {s.mem_slot:02d}   ·   {hint}"
+        hint = s.error or self.device.last_error or f"{self.device.port_name}   ·   {s.baudrate} 8N1 {handshake}"
+        return f"{power}   ·   {link}   ·   Schutz {s.protection}   ·   Speicher {s.mem_slot}   ·   {hint}"
 
     def scan_ports(self, _e=None) -> None:
         found = list_serial_ports()
@@ -420,14 +447,52 @@ class PN300Panel:
         if not self.state.mains:
             return
         self.state.edit = None
-        self.state.message = f"MEMORY {self.state.mem_slot:02d}"
+        if self.state.message.startswith("MEMORY"):
+            self.state.message = f"RECALL {self.state.mem_slot}"
+        else:
+            self.state.message = f"MEMORY {self.state.mem_slot}"
         self.refresh()
 
     def on_syst(self, _e) -> None:
         if not self.state.mains:
             return
         self.scan_ports()
-        self.state.message = (self.device.port_name or "Simulator")[:16]
+        identity = self.device.identify() or self.device.port_name
+        self.state.message = identity[:16]
+        self.refresh()
+
+    def on_baud(self, e) -> None:
+        self.device.use_port(self.device.port_name, baudrate=int(e.control.value), rtscts=self.state.rtscts)
+        self.refresh()
+
+    def on_handshake(self, e) -> None:
+        self.device.use_port(self.device.port_name, rtscts=e.control.value == "RTS/CTS")
+        self.refresh()
+
+    def on_function(self, _e) -> None:
+        if not self.state.mains:
+            return
+        kind = "CC" if (self.state.cont_a if self.state.channel == "A" else self.state.cont_b) == "CV" else "CV"
+        self.device.set_function(kind)
+        self.refresh()
+
+    def on_protection(self, _e) -> None:
+        if not self.state.mains:
+            return
+        self.device.set_protection("CUT" if self.state.protection == "LIM" else "LIM")
+        self.refresh()
+
+    def on_reset(self, _e) -> None:
+        if not self.state.mains:
+            return
+        self.device.reset()
+        self.state.message = "RESET"
+        self.refresh()
+
+    def on_lock(self, _e) -> None:
+        if not self.state.mains:
+            return
+        self.device.lock_local()
         self.refresh()
 
     def on_ab(self, _e) -> None:
@@ -447,8 +512,13 @@ class PN300Panel:
             return
         s = self.state
         if s.message.startswith("MEMORY"):
-            s.memories[s.mem_slot] = (s.va, s.ia, s.vb, s.ib, s.mode)
-            s.message = f"SAVED  {s.mem_slot:02d}"
+            self.device.save(s.mem_slot)
+            s.message = f"SAVED  {s.mem_slot}"
+            self.refresh()
+            return
+        if s.message.startswith("RECALL"):
+            self.device.recall(s.mem_slot)
+            s.message = f"LOADED {s.mem_slot}"
             self.refresh()
             return
         if s.edit is None:
@@ -468,7 +538,7 @@ class PN300Panel:
                 s.vb = value
             self.device.set_voltage(s.channel, value)
         else:
-            value = min(max(value, 0.001), s.i_limit())
+            value = min(max(value, s.i_floor()), s.i_limit())
             if s.channel == "A" or s.mode == "PAR":
                 s.ia = value
             if s.channel == "B" or s.mode == "PAR":
@@ -498,17 +568,19 @@ class PN300Panel:
         self.refresh()
 
     def on_up(self, _e) -> None:
-        if self.state.message.startswith("MEMORY"):
-            self.state.mem_slot = 1 if self.state.mem_slot == 8 else self.state.mem_slot + 1
-            self.state.message = f"MEMORY {self.state.mem_slot:02d}"
+        if self.state.message.startswith(("MEMORY", "RECALL")):
+            self.state.mem_slot = 0 if self.state.mem_slot == 5 else self.state.mem_slot + 1
+            prefix = "RECALL" if self.state.message.startswith("RECALL") else "MEMORY"
+            self.state.message = f"{prefix} {self.state.mem_slot}"
             self.refresh()
             return
         self._nudge(1)
 
     def on_down(self, _e) -> None:
-        if self.state.message.startswith("MEMORY"):
-            self.state.mem_slot = 8 if self.state.mem_slot == 1 else self.state.mem_slot - 1
-            self.state.message = f"MEMORY {self.state.mem_slot:02d}"
+        if self.state.message.startswith(("MEMORY", "RECALL")):
+            self.state.mem_slot = 5 if self.state.mem_slot == 0 else self.state.mem_slot - 1
+            prefix = "RECALL" if self.state.message.startswith("RECALL") else "MEMORY"
+            self.state.message = f"{prefix} {self.state.mem_slot}"
             self.refresh()
             return
         self._nudge(-1)
@@ -522,9 +594,10 @@ class PN300Panel:
     def on_local(self, _e) -> None:
         if not self.state.mains:
             return
-        self.state.remote = not self.state.remote
-        if not self.state.remote:
+        if self.state.remote:
             self.device.set_local()
+        else:
+            self.device.enter_remote()
         self.refresh()
 
     def on_out(self, _e) -> None:

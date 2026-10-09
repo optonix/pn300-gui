@@ -11,6 +11,7 @@ LLO = "\x19"
 GTL = "\x01"
 DCL = "\x14"
 LINE_LIMIT = 64
+BAUD_RATES = (1200, 2400, 4800, 9600)
 
 
 def join_commands(*commands: str) -> str:
@@ -26,6 +27,14 @@ def select_channel(channel: str) -> str:
 
 def operating_mode(mode: str) -> str:
     return {"IND": "OPER_IND", "TRACK": "OPER_TRAC", "PAR": "OPER_PAR"}[mode]
+
+
+def function_mode(kind: str) -> str:
+    return "CONT_CV" if kind == "CV" else "CONT_CC"
+
+
+def protection(kind: str) -> str:
+    return "PROT_LIM" if kind == "LIM" else "PROT_CUT"
 
 
 def voltage_set(value: float) -> str:
@@ -54,6 +63,29 @@ def parse_output(answer: str) -> bool | None:
         return True
     if "OUT_OFF" in text:
         return False
+    return None
+
+
+def parse_number(answer: str) -> float | None:
+    digits = []
+    for char in answer.replace(",", "."):
+        if char.isdigit() or char in ".-":
+            digits.append(char)
+        elif digits:
+            break
+    if not digits:
+        return None
+    try:
+        return float("".join(digits))
+    except ValueError:
+        return None
+
+
+def parse_token(answer: str, known: tuple[str, ...]) -> str | None:
+    text = answer.strip().upper()
+    for token in known:
+        if token in text:
+            return token
     return None
 
 

@@ -1,15 +1,12 @@
 # pn300-gui
 
-Bedienoberfläche für das Digimess / Grundig PN 300. Das Fenster folgt dem Frontpanel. Die Oberfläche kennt die serielle Leitung nicht, sie spricht nur mit der Gerätefassade.
+Bedienoberfläche für das Digimess / Grundig PN 300. Das Fenster folgt dem Frontpanel. Die Oberfläche spricht nur mit der Gerätefassade.
 
-## Aufbau
+## Funktionsumfang
 
-- `main.py` startet das Fenster.
-- `pn300_gui/` ist die Oberfläche: Panel, Display, COM-Liste.
-- `pn300/` ist das Gerät: Zustand, Befehle, Simulator, serielle Leitung, Fassade.
-- `tests/` prüft Displayformat und Befehlstexte.
+Die Fassade spricht den Simulator oder eine RS-232-Leitung mit 1200 bis 9600 Baud, 8N1, wahlweise RTS/CTS. Befehlszeilen enden mit LF.
 
-Simulator ist die Voreinstellung. Ein COM-Port in der Zeile Schnittstelle öffnet die Leitung mit 9600 8N1.
+Umgesetzt sind Betriebsart, Kanalwahl, Spannung, Strom, CV/CC, Schutzart LIMITING oder CUT-OUT, Ausgang, Messung über `VOUT?` und `IOUT?`, Fehlerabfrage `ERR?`, Speicher 0 bis 5, Reset, Identifikation, Fernbedienung und die Sperre der LOCAL-Taste.
 
 ## Starten
 
