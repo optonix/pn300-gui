@@ -63,7 +63,7 @@ pn300/device.py      Fassade für die Oberfläche
 Auf dem Rechner, an dem das PN 300 hängt:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt pyinstaller
 flet pack main.py -n PN300 --product-name "Digimess PN 300"
 ```
 

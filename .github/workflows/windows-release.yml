@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Pakete installieren
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pyinstaller
 
       - name: Programm packen
         run: flet pack main.py -n PN300 --product-name "Digimess PN 300" --hidden-import serial.tools.list_ports
