@@ -15,6 +15,11 @@ INK = "#1c2430"
 BLUE = "#1e3a8a"
 KEY = "#d7d7d7"
 KEY_INK = "#2a2a2a"
+SIGN_W = 22
+JACK_W = 78
+NAME_W = 28
+SOCKET_GAP = 6
+SOCKET_W = SIGN_W + JACK_W + NAME_W + JACK_W + SIGN_W + 4 * SOCKET_GAP
 
 
 class PN300Panel:
@@ -116,32 +121,36 @@ class PN300Panel:
             content=ft.Container(width=10, height=10, border_radius=5, bgcolor="#111"),
         )
 
-    def socket_row(self, left_label: str, right_label: str, center: str) -> ft.Control:
+    def _fixed(self, control: ft.Control, width: int) -> ft.Column:
         return ft.Column(
-            [
-                ft.Row(
-                    [
-                        ft.Text(left_label, size=12, color="#333", width=58, text_align=ft.TextAlign.RIGHT),
-                        ft.Container(width=36),
-                        ft.Text(right_label, size=12, color="#333", width=58),
-                    ],
-                    spacing=6,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
-                ft.Row(
-                    [
-                        ft.Text("–", size=14, color="#444"),
-                        self.banana(False),
-                        ft.Text(center, size=14, weight=ft.FontWeight.W_700, color=INK, width=22, text_align=ft.TextAlign.CENTER),
-                        self.banana(True),
-                        ft.Text("+", size=14, color="#444"),
-                    ],
-                    spacing=6,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
-            ],
-            spacing=2,
+            [control],
+            width=width,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def output_row(self, name: str, left: str = "", right: str = "") -> ft.Row:
+        def jack(caption: str, red: bool) -> ft.Column:
+            controls: list[ft.Control] = []
+            if caption:
+                controls.append(ft.Text(caption, size=12, color="#333333"))
+            controls.append(self.banana(red))
+            return ft.Column(
+                controls,
+                width=JACK_W,
+                spacing=2,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+
+        return ft.Row(
+            [
+                self._fixed(ft.Text("–", size=14, color="#444444"), SIGN_W),
+                jack(left, False),
+                self._fixed(ft.Text(name, size=14, weight=ft.FontWeight.W_700, color=INK), NAME_W),
+                jack(right, True),
+                self._fixed(ft.Text("+", size=14, color="#444444"), SIGN_W),
+            ],
+            spacing=SOCKET_GAP,
+            vertical_alignment=ft.CrossAxisAlignment.END,
         )
 
     def build(self) -> ft.Control:
@@ -201,53 +210,17 @@ class PN300Panel:
         )
         sockets = ft.Column(
             [
-                self.socket_row("0 – 30V", "0 – 2.3A", "A"),
+                self.output_row("A", "0 – 30V", "0 – 2.3A"),
+                self.output_row("B"),
                 ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Text("–", size=14, color="#444"),
-                                self.banana(False),
-                                ft.Text("B", size=14, weight=ft.FontWeight.W_700, width=22, text_align=ft.TextAlign.CENTER),
-                                self.banana(True),
-                                ft.Text("+", size=14, color="#444"),
-                            ],
-                            spacing=6,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        ft.Text("250Vmax   MAX TO ⊥", size=10, color="#555"),
-                    ],
-                    spacing=2,
+                    [ft.Text("250Vmax   MAX TO ⊥", size=10, color="#555555")],
+                    width=SOCKET_W,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Text("5V", size=12, color="#333", width=58, text_align=ft.TextAlign.RIGHT),
-                                ft.Container(width=36),
-                                ft.Text("2A", size=12, color="#333", width=58),
-                            ],
-                            spacing=6,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        ft.Row(
-                            [
-                                ft.Text("–", size=14, color="#444"),
-                                self.banana(False),
-                                ft.Text("⊥", size=14, weight=ft.FontWeight.W_700, width=22, text_align=ft.TextAlign.CENTER),
-                                self.banana(True),
-                                ft.Text("+", size=14, color="#444"),
-                            ],
-                            spacing=6,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                    ],
-                    spacing=2,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
+                self.output_row("⊥", "5V", "2A"),
             ],
-            spacing=8,
+            spacing=6,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         power = ft.Column(
             [
