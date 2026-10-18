@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import flet as ft
 
 from pn300.device import Device
-from pn300.model import MODES, V_MAX
+from pn300.face import Face
 from pn300.protocol import BAUD_RATES
-from pn300_gui.display import fit16, reading
 from pn300_gui.ports import list_serial_ports
 
 FACE = "#eceae4"
@@ -15,14 +16,19 @@ INK = "#1c2430"
 BLUE = "#1e3a8a"
 KEY = "#d7d7d7"
 KEY_INK = "#2a2a2a"
+LED_OFF = "#8d8d8d"
 
 
 class PN300Panel:
     def __init__(self, page: ft.Page, device: Device | None = None) -> None:
         self.page = page
         self.device = device or Device()
-        self.lcd_1 = ft.Text(fit16(""), font_family="Consolas", size=26, color="#1a1a1a", weight=ft.FontWeight.W_700)
-        self.lcd_2 = ft.Text(fit16(""), font_family="Consolas", size=26, color="#1a1a1a", weight=ft.FontWeight.W_700)
+        self.face = Face(self.device)
+        self._blink_on = True
+        self._boot_token = 0
+        self._ignore_link = False
+        self.lcd_1 = ft.Text("", font_family="Consolas", size=26, color="#1a1a1a", weight=ft.FontWeight.W_700)
+        self.lcd_2 = ft.Text("", font_family="Consolas", size=26, color="#1a1a1a", weight=ft.FontWeight.W_700)
         self.leds: dict[str, ft.Container] = {}
         self.link_mark = ft.Container(width=14, height=14, bgcolor="#9aa09a", border_radius=2)
         self.link_text = ft.Text("Nicht verbunden", size=13, color="#333")
@@ -60,32 +66,47 @@ class PN300Panel:
             width=14,
             height=14,
             border_radius=7,
-            bgcolor="#8d8d8d",
+            bgcolor=LED_OFF,
             border=ft.border.all(1, "#6a6a6a"),
             data=on,
         )
         self.leds[key] = dot
         return dot
 
-    def set_led(self, key: str, lit: bool) -> None:
-        dot = self.leds[key]
-        dot.bgcolor = dot.data if lit else "#8d8d8d"
+    def set_led(self, key: str, color: str | None) -> None:
+        self.leds[key].bgcolor = color or LED_OFF
 
-    def key_button(self, label: str, on_click, width: int = 58, height: int = 32) -> ft.ElevatedButton:
-        return ft.ElevatedButton(
-            content=ft.Text(label, size=12, weight=ft.FontWeight.W_600, color=KEY_INK),
-            width=width,
-            height=height,
-            style=ft.ButtonStyle(
+    def key_button(self, label: str, on_click, width: int = 58, height: int = 32) -> ft.Control:
+        token = {"holding": False}
+
+        async def repeat() -> None:
+            await asyncio.sleep(0.4)
+            while token["holding"]:
+                on_click(None)
+                await asyncio.sleep(0.12)
+
+        def down(_e) -> None:
+            token["holding"] = True
+            on_click(None)
+            self.page.run_task(repeat)
+
+        def up(_e) -> None:
+            token["holding"] = False
+
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap_down=down,
+            on_tap_up=up,
+            on_exit=up,
+            content=ft.Container(
+                content=ft.Text(label, size=12, weight=ft.FontWeight.W_600, color=KEY_INK),
+                width=width,
+                height=height,
                 bgcolor=KEY,
-                color=KEY_INK,
-                overlay_color="#c0c0c0",
-                shape=ft.RoundedRectangleBorder(radius=3),
-                side=ft.BorderSide(1, "#9a9a9a"),
-                padding=0,
-                elevation=1,
+                border_radius=3,
+                border=ft.border.all(1, "#9a9a9a"),
+                alignment=ft.alignment.center,
             ),
-            on_click=on_click,
         )
 
     def group(self, title: str, body: ft.Control, width: int) -> ft.Container:
@@ -252,7 +273,7 @@ class PN300Panel:
         power = ft.Column(
             [
                 ft.Text("I  O", size=11, color="#666"),
-                self.key_button("", self.toggle_mains, width=36, height=28),
+                self.key_button("", self._press("power"), width=36, height=28),
             ],
             spacing=2,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -261,9 +282,9 @@ class PN300Panel:
             "SET",
             ft.Column(
                 [
-                    ft.Row([self.key_button("V", self.on_v), self.key_button("I", self.on_i)], spacing=6),
-                    ft.Row([self.key_button("MODE", self.on_mode), self.key_button("MEM", self.on_mem)], spacing=6),
-                    ft.Row([self.key_button("SYST", self.on_syst)], spacing=6),
+                    ft.Row([self.key_button("V", self._press("v")), self.key_button("I", self._press("i"))], spacing=6),
+                    ft.Row([self.key_button("MODE", self._press("mode")), self.key_button("MEM", self._press("mem"))], spacing=6),
+                    ft.Row([self.key_button("SYST", self._press("syst"))], spacing=6),
                 ],
                 spacing=6,
             ),
@@ -273,9 +294,9 @@ class PN300Panel:
             "SELECT",
             ft.Column(
                 [
-                    self.key_button("A/B", self.on_ab, width=64),
-                    self.key_button("ENTER", self.on_enter, width=64),
-                    self.key_button("ESC", self.on_esc, width=64),
+                    self.key_button("A/B", self._press("ab"), width=64),
+                    self.key_button("ENTER", self._press("enter"), width=64),
+                    self.key_button("ESC", self._press("esc"), width=64),
                 ],
                 spacing=6,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -286,15 +307,15 @@ class PN300Panel:
             "ADJUST",
             ft.Column(
                 [
-                    self.key_button("▲", self.on_up, width=40),
+                    self.key_button("▲", self._press("up"), width=40),
                     ft.Row(
                         [
-                            self.key_button("◄", self.on_left, width=40),
-                            self.key_button("►", self.on_right, width=40),
+                            self.key_button("◄", self._press("left"), width=40),
+                            self.key_button("►", self._press("right"), width=40),
                         ],
                         spacing=6,
                     ),
-                    self.key_button("▼", self.on_down, width=40),
+                    self.key_button("▼", self._press("down"), width=40),
                 ],
                 spacing=6,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -304,8 +325,8 @@ class PN300Panel:
         remote_block = ft.Column(
             [
                 ft.Text("REMOTE", size=11, color="#555"),
-                self.led("remote", "#d7a21a"),
-                self.key_button("LOCAL", self.on_local, width=72),
+                self.led("remote", "#e23b3b"),
+                self.key_button("LOCAL", self._press("local"), width=72),
             ],
             spacing=6,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -314,7 +335,7 @@ class PN300Panel:
             [
                 ft.Text("ON", size=11, color="#555"),
                 self.led("out", "#43c45a"),
-                self.key_button("OUT A/B", self.on_out, width=78),
+                self.key_button("OUT A/B", self._press("out"), width=78),
             ],
             spacing=6,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -364,6 +385,9 @@ class PN300Panel:
                     ft.Text("Baud:", size=13, color="#222"),
                     self.baud,
                     ft.Container(width=16),
+                    ft.Text("Handshake:", size=13, color="#222"),
+                    self.handshake,
+                    ft.Container(width=16),
                     self.link_mark,
                     self.link_text,
                 ],
@@ -383,29 +407,45 @@ class PN300Panel:
         )
         self.scan_ports()
         self.refresh()
+        self._boot_token += 1
+        self.page.run_task(self._animate_boot, self._boot_token)
+        self.page.run_task(self._blink)
         return shell
 
+    def _press(self, key: str):
+        def handler(_e=None) -> None:
+            self.face.press(key)
+            if key == "power" and self.face.phase == "boot":
+                self._boot_token += 1
+                self.page.run_task(self._animate_boot, self._boot_token)
+            self.refresh()
+
+        return handler
+
+    async def _animate_boot(self, token: int) -> None:
+        while self.face.phase == "boot" and token == self._boot_token:
+            self.refresh()
+            await asyncio.sleep(0.3)
+            if token != self._boot_token or self.face.phase != "boot":
+                break
+            if not self.face.advance_boot():
+                break
+        if token == self._boot_token:
+            self.refresh()
+
+    async def _blink(self) -> None:
+        while True:
+            await asyncio.sleep(0.4)
+            self._blink_on = not self._blink_on
+            if self.face.cursor_mark():
+                self.refresh()
+
     def refresh(self) -> None:
-        s = self.state
-        if not s.mains:
-            self.lcd_1.value = fit16("")
-            self.lcd_2.value = fit16("")
-            self.lcd_1.color = "#7ea33a"
-            self.lcd_2.color = "#7ea33a"
-        else:
-            self.lcd_1.color = "#1a1a1a"
-            self.lcd_2.color = "#1a1a1a"
-            self.lcd_1.value = fit16(self._line1())
-            self.lcd_2.value = fit16(self._line2())
-        self.set_led("ind", s.mains and s.mode == "IND")
-        self.set_led("track", s.mains and s.mode == "TRACK")
-        self.set_led("par", s.mains and s.mode == "PAR")
-        self.set_led("remote", s.mains and s.remote)
-        self.set_led("out", s.mains and s.output_on)
-        self.set_led("cv_a", s.mains and s.output_on and s.cont_a == "CV")
-        self.set_led("cv_b", s.mains and s.output_on and s.cont_b == "CV")
-        self.set_led("cc_a", s.mains and s.output_on and s.cont_a == "CC")
-        self.set_led("cc_b", s.mains and s.output_on and s.cont_b == "CC")
+        first, second = self.face.lines()
+        self._paint_line(self.lcd_1, first, 0)
+        self._paint_line(self.lcd_2, second, 1)
+        for name, color in self.face.led_colors().items():
+            self.set_led(name, color)
         connected = self.device.port_name != "Simulator" and not self.device.last_error
         self.link_mark.bgcolor = "#3cba54" if connected else "#9aa09a"
         if connected:
@@ -414,29 +454,34 @@ class PN300Panel:
             self.link_text.value = self.device.last_error[:42]
         else:
             self.link_text.value = "Simulator"
+        self._ignore_link = True
+        self.baud.value = str(self.state.baudrate)
+        self.handshake.value = "RTS/CTS" if self.state.rtscts else "keines"
+        if self.port.options and any(option.key == self.device.port_name for option in self.port.options):
+            self.port.value = self.device.port_name
+        self._ignore_link = False
         self.page.update()
 
-    def _line1(self) -> str:
-        s = self.state
-        if s.message:
-            return s.message
-        if s.edit == "V":
-            return f"VOLTAGE_{s.channel}"
-        if s.edit == "I":
-            return f"CURRENT_{s.channel}"
-        volts = s.measured_va if s.output_on else s.va
-        amps = s.measured_ia if s.output_on else s.ia
-        return reading(volts, amps)
-
-    def _line2(self) -> str:
-        s = self.state
-        if s.message:
-            return ""
-        if s.edit in ("V", "I"):
-            return f"  SET:[{s.draft:>7}]"
-        volts = s.measured_vb if s.output_on else s.vb
-        amps = s.measured_ib if s.output_on else s.ib
-        return reading(volts, amps)
+    def _paint_line(self, control: ft.Text, text: str, line_no: int) -> None:
+        mark = self.face.cursor_mark() if self.state.mains else None
+        base = "#1a1a1a" if self.state.mains else "#7ea33a"
+        spans: list[ft.TextSpan] = []
+        for index, char in enumerate(text):
+            highlighted = bool(mark and mark[0] == line_no and mark[1] == index and self._blink_on)
+            if highlighted:
+                style = ft.TextStyle(
+                    bgcolor="#1a1a1a",
+                    color="#b6e24a",
+                    font_family="Consolas",
+                    size=26,
+                    weight=ft.FontWeight.W_700,
+                )
+            else:
+                style = ft.TextStyle(color=base, font_family="Consolas", size=26, weight=ft.FontWeight.W_700)
+            spans.append(ft.TextSpan(char, style))
+        control.value = ""
+        control.spans = spans
+        control.color = base
 
     def scan_ports(self, _e=None) -> None:
         found = list_serial_ports()
@@ -447,208 +492,22 @@ class PN300Panel:
             self.refresh()
 
     def on_port(self, e) -> None:
+        if self._ignore_link:
+            return
         self.device.use_port(e.control.value)
-        self.port.value = self.device.port_name
-        self.state.message = ""
-        self.refresh()
-
-    def toggle_mains(self, _e) -> None:
-        self.state.mains = not self.state.mains
-        if not self.state.mains:
-            self.state.output_on = False
-            self.state.edit = None
-            self.state.message = ""
-            self.device.set_output(False)
-        self.refresh()
-
-    def on_v(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.state.edit = "V"
-        self.state.message = ""
-        self.state.draft = f"{self.state.selected_v():5.2f}"
-        self.refresh()
-
-    def on_i(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.state.edit = "I"
-        self.state.message = ""
-        self.state.draft = f"{self.state.selected_i():5.3f}"
-        self.refresh()
-
-    def on_mode(self, _e) -> None:
-        if not self.state.mains:
-            return
-        s = self.state
-        s.mode = MODES[(MODES.index(s.mode) + 1) % 3]
-        s.edit = None
-        s.message = ""
-        if s.mode == "TRACK":
-            s.vb = s.va
-        self.device.set_mode(s.mode)
-        self.refresh()
-
-    def on_mem(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.state.edit = None
-        if self.state.message.startswith("MEMORY"):
-            self.state.message = f"RECALL {self.state.mem_slot}"
-        else:
-            self.state.message = f"MEMORY {self.state.mem_slot}"
-        self.refresh()
-
-    def on_syst(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.scan_ports()
-        identity = self.device.identify() or self.device.port_name
-        self.state.message = identity[:16]
+        self.face._home()
         self.refresh()
 
     def on_baud(self, e) -> None:
+        if self._ignore_link:
+            return
         self.device.use_port(self.device.port_name, baudrate=int(e.control.value), rtscts=self.state.rtscts)
+        self.face._home()
         self.refresh()
 
     def on_handshake(self, e) -> None:
+        if self._ignore_link:
+            return
         self.device.use_port(self.device.port_name, rtscts=e.control.value == "RTS/CTS")
-        self.refresh()
-
-    def on_function(self, _e) -> None:
-        if not self.state.mains:
-            return
-        kind = "CC" if (self.state.cont_a if self.state.channel == "A" else self.state.cont_b) == "CV" else "CV"
-        self.device.set_function(kind)
-        self.refresh()
-
-    def on_protection(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.device.set_protection("CUT" if self.state.protection == "LIM" else "LIM")
-        self.refresh()
-
-    def on_reset(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.device.reset()
-        self.state.message = "RESET"
-        self.refresh()
-
-    def on_lock(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.device.lock_local()
-        self.refresh()
-
-    def on_ab(self, _e) -> None:
-        s = self.state
-        if not s.mains or s.mode == "PAR":
-            return
-        s.channel = "B" if s.channel == "A" else "A"
-        s.message = ""
-        if s.edit == "V":
-            s.draft = f"{s.selected_v():5.2f}"
-        elif s.edit == "I":
-            s.draft = f"{s.selected_i():5.3f}"
-        self.refresh()
-
-    def on_enter(self, _e) -> None:
-        if not self.state.mains:
-            return
-        s = self.state
-        if s.message.startswith("MEMORY"):
-            self.device.save(s.mem_slot)
-            s.message = f"SAVED  {s.mem_slot}"
-            self.refresh()
-            return
-        if s.message.startswith("RECALL"):
-            self.device.recall(s.mem_slot)
-            s.message = f"LOADED {s.mem_slot}"
-            self.refresh()
-            return
-        if s.edit is None:
-            return
-        try:
-            value = float(s.draft)
-        except ValueError:
-            s.message = "EINGABE FEHLER"
-            s.edit = None
-            self.refresh()
-            return
-        if s.edit == "V":
-            value = min(max(value, 0.0), V_MAX)
-            if s.channel == "A" or s.mode in ("TRACK", "PAR"):
-                s.va = value
-            if s.channel == "B" or s.mode in ("TRACK", "PAR"):
-                s.vb = value
-            self.device.set_voltage(s.channel, value)
-        else:
-            value = min(max(value, s.i_floor()), s.i_limit())
-            if s.channel == "A" or s.mode == "PAR":
-                s.ia = value
-            if s.channel == "B" or s.mode == "PAR":
-                s.ib = value
-            self.device.set_current(s.channel, value)
-        s.edit = None
-        s.message = ""
-        self.refresh()
-
-    def on_esc(self, _e) -> None:
-        self.state.edit = None
-        self.state.message = ""
-        self.refresh()
-
-    def _nudge(self, delta: float) -> None:
-        s = self.state
-        if not s.mains or s.edit is None:
-            return
-        try:
-            value = float(s.draft)
-        except ValueError:
-            value = 0.0
-        step = 0.01 if s.edit == "V" else 0.001
-        limit = V_MAX if s.edit == "V" else s.i_limit()
-        value = min(max(value + delta * step, 0.0), limit)
-        s.draft = f"{value:5.2f}" if s.edit == "V" else f"{value:5.3f}"
-        self.refresh()
-
-    def on_up(self, _e) -> None:
-        if self.state.message.startswith(("MEMORY", "RECALL")):
-            self.state.mem_slot = 0 if self.state.mem_slot == 5 else self.state.mem_slot + 1
-            prefix = "RECALL" if self.state.message.startswith("RECALL") else "MEMORY"
-            self.state.message = f"{prefix} {self.state.mem_slot}"
-            self.refresh()
-            return
-        self._nudge(1)
-
-    def on_down(self, _e) -> None:
-        if self.state.message.startswith(("MEMORY", "RECALL")):
-            self.state.mem_slot = 5 if self.state.mem_slot == 0 else self.state.mem_slot - 1
-            prefix = "RECALL" if self.state.message.startswith("RECALL") else "MEMORY"
-            self.state.message = f"{prefix} {self.state.mem_slot}"
-            self.refresh()
-            return
-        self._nudge(-1)
-
-    def on_left(self, _e) -> None:
-        self._nudge(-10)
-
-    def on_right(self, _e) -> None:
-        self._nudge(10)
-
-    def on_local(self, _e) -> None:
-        if not self.state.mains:
-            return
-        if self.state.remote:
-            self.device.set_local()
-        else:
-            self.device.enter_remote()
-        self.refresh()
-
-    def on_out(self, _e) -> None:
-        if not self.state.mains:
-            return
-        self.state.output_on = self.device.set_output(not self.state.output_on)
-        self.state.message = ""
+        self.face._home()
         self.refresh()

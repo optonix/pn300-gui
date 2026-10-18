@@ -26,3 +26,12 @@ def parse_error(answer: str) -> tuple[int, str]:
     digits = "".join(ch for ch in text if ch.isdigit())
     code = int(digits) if digits else 0
     return code, ERRORS.get(code, text)
+
+
+# Abschnitt 6.7, zweizeilig auf dem LC-Display.
+LCD_ALERTS = {
+    21: ("Error", "Exceeded I limit"),
+    22: ("Error", "Exceeded V limit"),
+    91: ("Warning", "Unit overheated"),
+    96: ("Error", "Load failed"),
+}
