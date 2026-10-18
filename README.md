@@ -15,33 +15,41 @@ python main.py
 
 Flet 1.0 hat `ft.app` entfernt. Das Projekt bleibt deshalb bei `flet==0.28.3`.
 
-Die Tests prüfen Displayformat, Befehlstexte und die Fehlercodes:
+Die Tests prüfen Displayformat, Befehlstexte, den Simulator und die Tastenfolgen:
 
 ```bash
-python -m unittest tests/test_protocol.py
+python -m unittest discover -s tests
 ```
 
 ## Bedienung
 
-Oben im Fenster ist das Panel. Unten die Zeile für die Leitung.
+Oben im Fenster ist das Panel. Unten die Zeile für die Leitung: Port, Baudrate, Handshake und der Verbindungsstatus.
 
-Ohne Gerät bleibt die Schnittstelle auf Simulator. Die Werte ändern sich nur lokal, die Befehle werden aber so gebaut wie in der Gebrauchsanweisung, Abschnitt 7.4.
+Ohne Gerät bleibt die Schnittstelle auf Simulator. Dieselben Befehle wie in der Gebrauchsanweisung, Abschnitt 7.4, laufen dann gegen den Simulator.
 
-Am Gerät einen COM-Port wählen. Baudrate 1200, 2400, 4800 oder 9600, 8 Datenbit, keine Parität, ein Stoppbit. Handshake keines oder RTS/CTS, passend zu dem, was am PN 300 unter SYST steht. Suchen liest die Ports neu ein. Die Leitung muss laut Anleitung schon vor dem Einschalten des Geräts stecken.
+Am Gerät einen COM-Port wählen. Baudrate 1200, 2400, 4800 oder 9600, 8 Datenbit, keine Parität, ein Stoppbit. Handshake keines oder RTS/CTS. Dieselben Werte stehen im Menü SYST. Die Leitung muss laut Anleitung schon vor dem Einschalten des Geräts stecken.
 
-Beim Öffnen eines Ports geht Device Clear raus, danach das Steuerzeichen für Fernbedienung (HT) und `*CLS`. LOCAL schickt Go To Local (SOH). Sperre schickt Local Lockout (EM), dann reagiert die LOCAL-Taste am Gerät nicht mehr.
+Beim Öffnen eines echten Ports geht Device Clear raus, danach das Steuerzeichen für Fernbedienung (HT) und `*CLS`. Die Ausgänge gehen dabei aus. LOCAL schickt Go To Local (SOH). Ist Local Lockout gesetzt, bleibt LOCAL ohne Wirkung. Der Simulator führt Einstellbefehle im Local nicht aus. Erlaubt bleiben dort nur die Statusabfragen aus Abschnitt 7.2.
 
-ENTER übernimmt Spannung oder Strom für den gewählten Kanal, als eine Zeile `SEL_A;VSET 12.50` beziehungsweise `ISET`. Die Zeile endet mit LF. Antworten kommen mit CR und LF.
+Nach dem Einschalten am Simulator läuft der Selbsttest über CPU, ROM, RAM, KEY, BATTERY und DISPLAY. Danach stehen die bisherigen Sollwerte wieder da, die Ausgänge sind aus. Der Anfangszustand entspricht `*RST`: 0,00 V, 2,300 A, INDEPEND, CV, LIMITING.
 
-OUT A/B schickt `OUT_ON` oder `OUT_OFF` und fragt `OUT?` ab. Bei eingeschaltetem Ausgang zeigt das Display die Messwerte aus `VOUT?` und `IOUT?`, sonst die Sollwerte. Die CV- und CC-LEDs folgen `CONT?`.
+Jede Taste wiederholt, solange sie gehalten wird. Pfeil hoch und runter blättern in den Menüs. Bei der Zahleneingabe schieben links und rechts die Stelle, hoch und runter ändern die Ziffer. Die Voreinstellung ist die letzte Stelle.
 
-CV/CC und Schutz sitzen in der unteren Zeile, weil das Frontpanel dafür keine eigene Taste hat. Schutz wechselt zwischen LIMITING und CUT-OUT. Reset schickt `*RST`. SYST fragt `*IDN?` ab und zeigt die Kennung im Display.
+MODE öffnet OPERATION, CONTROL, ADJUSTMENT und PROTECTION. ENTER übernimmt den Eintrag, ESC verwirft ihn. OPERATION schickt `OPER_IND`, `OPER_TRAC` oder `OPER_PAR`. In PARALLEL liegt der Strom zwischen 0,300 A und 4,600 A. CONTROL schickt `CONT_CV` oder `CONT_CC` für den gewählten Kanal. PROTECTION schickt `PROT_LIM` oder `PROT_CUT`. ADJUSTMENT gilt nur an der Oberfläche: DIRECT oder INDIRECT.
 
-MEM öffnet den Speicher. Pfeil hoch und runter wählen Platz 0 bis 5, ein zweites MEM wechselt von Speichern auf Laden. ENTER schickt `*SAV` oder `*RCL`. Das Gerät hat sechs Plätze, nicht acht.
+V und I öffnen bei INDIRECT die Anzeige `VOLTAGE_` oder `CURRENT_` mit SET oder LIM. ENTER schickt `SEL_A;VSET 12.50` beziehungsweise `ISET`. Die Zeile endet mit LF, Antworten kommen mit CR und LF. ESC verwirft den Entwurf. Bei DIRECT und eingeschaltetem Ausgang ändert die gewählte Stelle den Wert sofort. ESC zeigt dann die Messwerte.
 
-Nach jedem Befehl kommt `ERR?`. Der Text steht unten, zum Beispiel Stromgrenze, Spannungsgrenze, Local oder ein unbekannter Befehl. Bei der Schutzart LIMITING meldet das Gerät die Grenzen 21 und 22 nicht als Text, sondern über die LEDs.
+OUT A/B schickt `OUT_ON` oder `OUT_OFF` und fragt `OUT?` ab. Bei eingeschaltetem Ausgang und INDIRECT zeigt das Display die Messwerte aus `VOUT?` und `IOUT?`. Solange Netz an ist, leuchtet bei CV-Regelung die CV-LED grün und die CC-LED rot, bei CC-Regelung umgekehrt. REMOTE leuchtet rot. IND, TRACK und PAR leuchten grün für die aktive Betriebsart. OUT leuchtet grün, solange die Ausgänge an sind.
 
-Quelle C ist fest 5 V / 2 A und hat keine Fernsteuerbefehle.
+LIMITING wechselt bei Überlast zwischen CV und CC und meldet die Grenzen 21 und 22 nicht. CUT-OUT schaltet die Ausgänge aus und zeigt im Display „Exceeded I limit“ oder „Exceeded V limit“.
+
+MEM bietet STORE und LOAD. Danach den Platz 0 bis 5 und die Rückfrage „Are you sure ?“. ENTER schickt `*SAV` oder `*RCL`.
+
+SYST stellt die Schnittstelle ein. Unter RS 232C gelten Baudrate und Handshake für den geöffneten Port. Unter GPIB wird die Adresse 0 bis 30 gespeichert. Ein GPIB-Bus ist nicht angebunden.
+
+Der Netzschalter am Simulator macht den Selbsttest, schaltet die Ausgänge aus, behält die Sollwerte und löscht Local Lockout. Auf einer echten Leitung schickt diese Taste kein `OUT_OFF`. Einschalten liest das Gerät dann neu ein.
+
+Nach jedem Befehl kommt `ERR?`. Der deutsche Text steht unten in der Statuszeile. Gemeldet werden höchstens die ersten zwei Codes. Quelle C ist fest 5 V / 2 A und hat keine Fernsteuerbefehle.
 
 ## Aufbau
 
@@ -51,6 +59,7 @@ pn300_gui/panel.py   Frontpanel und untere Zeile
 pn300_gui/display.py die zwei Zeilen, je 16 Zeichen
 pn300_gui/ports.py   COM-Ports
 pn300/model.py       Kanäle, Betriebsart, Speicher
+pn300/face.py        Tasten und Anzeigen nach Kapitel 5 und 6
 pn300/protocol.py    Befehlstexte aus der Anleitung
 pn300/errors.py      Codes aus Abschnitt 7.3.3
 pn300/transport.py   serielle Leitung

@@ -26,13 +26,14 @@ class Device:
         if rtscts is not None:
             self.state.rtscts = rtscts
         if self.port_name == "Simulator":
-            self._link = Simulator(self.state)
-            self.state.remote = False
+            if not isinstance(self._link, Simulator):
+                self._link = Simulator(self.state)
             return
         try:
             self._link = SerialTransport(self.port_name, self.state.baudrate, self.state.rtscts)
             self._send(protocol.DCL + protocol.REN + "*CLS")
             self.state.remote = True
+            self.state.output_on = False
             self.poll()
         except Exception as exc:
             self.last_error = str(exc)
@@ -52,27 +53,33 @@ class Device:
             return ""
 
     def check_error(self) -> str:
-        code, text = parse_error(self._send("ERR?"))
-        self.state.error = text
-        if text:
-            self.last_error = text
-        return text
+        found = ""
+        for _ in range(2):
+            code, text = parse_error(self._send("ERR?"))
+            if code == 0:
+                break
+            found = text
+        self.state.error = found
+        if found:
+            self.last_error = found
+        return found
 
     def poll(self) -> None:
         state = self.state
+        selected = state.channel
         self._send("SEL_A")
-        state.measured_va = protocol.parse_number(self._send("VOUT?")) or state.measured_va
-        state.measured_ia = protocol.parse_number(self._send("IOUT?")) or state.measured_ia
-        state.va = protocol.parse_number(self._send("VSET?")) or state.va
-        state.ia = protocol.parse_number(self._send("ISET?")) or state.ia
+        state.measured_va = self._number(self._send("VOUT?"), state.measured_va)
+        state.measured_ia = self._number(self._send("IOUT?"), state.measured_ia)
+        state.va = self._number(self._send("VSET?"), state.va)
+        state.ia = self._number(self._send("ISET?"), state.ia)
         cont = protocol.parse_token(self._send("CONT?"), ("CONT_CV", "CONT_CC"))
         if cont:
             state.cont_a = "CV" if cont == "CONT_CV" else "CC"
         self._send("SEL_B")
-        state.measured_vb = protocol.parse_number(self._send("VOUT?")) or state.measured_vb
-        state.measured_ib = protocol.parse_number(self._send("IOUT?")) or state.measured_ib
-        state.vb = protocol.parse_number(self._send("VSET?")) or state.vb
-        state.ib = protocol.parse_number(self._send("ISET?")) or state.ib
+        state.measured_vb = self._number(self._send("VOUT?"), state.measured_vb)
+        state.measured_ib = self._number(self._send("IOUT?"), state.measured_ib)
+        state.vb = self._number(self._send("VSET?"), state.vb)
+        state.ib = self._number(self._send("ISET?"), state.ib)
         cont = protocol.parse_token(self._send("CONT?"), ("CONT_CV", "CONT_CC"))
         if cont:
             state.cont_b = "CV" if cont == "CONT_CV" else "CC"
@@ -85,34 +92,73 @@ class Device:
         protection = protocol.parse_token(self._send("PROT?"), ("PROT_LIM", "PROT_CUT"))
         if protection:
             state.protection = "LIM" if protection == "PROT_LIM" else "CUT"
+        self._send(protocol.select_channel(selected))
         self.check_error()
+
+    def _number(self, answer: str, previous: float) -> float:
+        parsed = protocol.parse_number(answer)
+        return previous if parsed is None else parsed
 
     def set_voltage(self, channel: str, value: float) -> None:
         self._send(protocol.join_commands(protocol.select_channel(channel), protocol.voltage_set(value)))
-        self.check_error()
+        if self.check_error() or isinstance(self._link, Simulator):
+            return
+        if channel == "A" or self.state.mode in ("TRACK", "PAR"):
+            self.state.va = value
+        if channel == "B" or self.state.mode in ("TRACK", "PAR"):
+            self.state.vb = value
 
     def set_current(self, channel: str, value: float) -> None:
         self._send(protocol.join_commands(protocol.select_channel(channel), protocol.current_set(value)))
-        self.check_error()
+        if self.check_error() or isinstance(self._link, Simulator):
+            return
+        if channel == "A" or self.state.mode == "PAR":
+            self.state.ia = value
+        if channel == "B" or self.state.mode == "PAR":
+            self.state.ib = value
 
     def set_mode(self, mode: str) -> None:
         self._send(protocol.operating_mode(mode))
-        self.check_error()
+        if self.check_error() or isinstance(self._link, Simulator):
+            return
+        self.state.mode = mode
+        if mode == "TRACK":
+            self.state.vb = self.state.va
+        if mode == "PAR":
+            self.state.vb = self.state.va
+            current = min(max(self.state.ia, 0.3), 4.6)
+            self.state.ia = self.state.ib = current
+            self.set_current("A", current)
 
     def set_function(self, kind: str) -> None:
-        self._send(protocol.join_commands(protocol.select_channel(self.state.channel), protocol.function_mode(kind)))
-        self.check_error()
+        channel = self.state.channel
+        self._send(protocol.join_commands(protocol.select_channel(channel), protocol.function_mode(kind)))
+        if self.check_error() or isinstance(self._link, Simulator):
+            return
+        if channel == "A" or self.state.mode == "PAR":
+            self.state.cont_a = kind
+        if channel == "B" or self.state.mode == "PAR":
+            self.state.cont_b = kind
 
     def set_protection(self, kind: str) -> None:
         self._send(protocol.protection(kind))
-        self.check_error()
+        if self.check_error() or isinstance(self._link, Simulator):
+            return
+        self.state.protection = kind
 
     def set_output(self, enabled: bool) -> bool:
         self._send(protocol.output_on() if enabled else protocol.output_off())
         parsed = protocol.parse_output(self._send(protocol.output_query()))
-        self.check_error()
-        self.state.output_on = enabled if parsed is None else parsed
+        error = self.check_error()
+        if parsed is not None:
+            self.state.output_on = parsed
+        elif not error:
+            self.state.output_on = enabled
         return self.state.output_on
+
+    def simulator_mains(self, on: bool) -> None:
+        if self.port_name == "Simulator" and isinstance(self._link, Simulator):
+            self._link.mains(on)
 
     def save(self, slot: int) -> None:
         self._send(protocol.save_preset(slot))
@@ -138,8 +184,8 @@ class Device:
     def enter_remote(self) -> None:
         self._send(protocol.REN)
         self.state.remote = True
+        self.state.output_on = False
 
     def set_local(self) -> None:
         self._send(protocol.GTL)
         self.state.remote = False
-        self.state.lockout = False
